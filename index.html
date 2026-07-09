@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>無邊際白板</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --panel: rgba(255, 255, 255, 0.94);
+      --panel-border: rgba(38, 56, 79, 0.16);
+      --ink: #172033;
+      --muted: #627089;
+      --accent: #0f8b8d;
+      --accent-soft: rgba(15, 139, 141, 0.12);
+      --danger: #b42318;
+      --shadow: 0 10px 30px rgba(33, 44, 62, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #f7f9fb;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+      overscroll-behavior: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      min-width: 320px;
+      min-height: 320px;
+    }
+
+    #board {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #fff;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    #board.panning {
+      cursor: grab;
+    }
+
+    #board.dragging-pan {
+      cursor: grabbing;
+    }
+
+    #toolbar {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 54px;
+      padding: 8px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+      padding-right: 8px;
+      border-right: 1px solid rgba(38, 56, 79, 0.12);
+    }
+
+    .tool-group:last-child {
+      border-right: 0;
+      padding-right: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(38, 56, 79, 0.14);
+      border-radius: 7px;
+      min-width: 38px;
+      height: 38px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+    }
+
+    button:hover {
+      background: #f2f7f8;
+      border-color: rgba(15, 139, 141, 0.3);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.active {
+      color: var(--accent);
+      border-color: rgba(15, 139, 141, 0.42);
+      background: var(--accent-soft);
+    }
+
+    button.danger {
+      color: var(--danger);
+    }
+
+    .icon-button {
+      width: 38px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .color-control {
+      width: 38px;
+      height: 38px;
+      padding: 3px;
+      border: 1px solid rgba(38, 56, 79, 0.14);
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .width-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid rgba(38, 56, 79, 0.14);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .width-control input {
+      width: 108px;
+      accent-color: var(--accent);
+    }
+
+    #widthValue {
+      min-width: 34px;
+      color: var(--ink);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #zoomLabel {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 66px;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 7px;
+      background: #eef3f6;
+      color: #26364d;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    #status {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 11;
+      max-width: min(560px, calc(100vw - 24px));
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: rgba(23, 32, 51, 0.9);
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 12px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    #status.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (max-width: 720px) {
+      #toolbar {
+        top: auto;
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        min-height: 58px;
+      }
+
+      .width-control input {
+        width: 92px;
+      }
+
+      #status {
+        bottom: calc(max(10px, env(safe-area-inset-bottom)) + 72px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app" aria-label="無邊際白板">
+    <canvas id="board"></canvas>
+
+    <div id="toolbar" role="toolbar" aria-label="白板工具列">
+      <div class="tool-group" aria-label="繪圖工具">
+        <button class="icon-button active" type="button" data-tool="pen" title="筆刷" aria-label="筆刷">✎</button>
+        <button class="icon-button" type="button" data-tool="eraser" title="橡皮擦" aria-label="橡皮擦">⌫</button>
+        <button class="icon-button" type="button" data-tool="line" title="直線" aria-label="直線">╱</button>
+        <button class="icon-button" type="button" data-tool="rect" title="長方形" aria-label="長方形">□</button>
+        <button class="icon-button" type="button" data-tool="circle" title="圓形" aria-label="圓形">○</button>
+        <button class="icon-button" type="button" data-tool="ellipse" title="橢圓形" aria-label="橢圓形">◯</button>
+      </div>
+
+      <div class="tool-group" aria-label="筆觸設定">
+        <input class="color-control" id="colorPicker" type="color" value="#172033" title="顏色" aria-label="顏色">
+        <label class="width-control" title="粗細">
+          粗細
+          <input id="widthSlider" type="range" min="1" max="60" value="4" aria-label="粗細">
+          <span id="widthValue">4px</span>
+        </label>
+      </div>
+
+      <div class="tool-group" aria-label="白板操作">
+        <button class="icon-button danger" id="clearBtn" type="button" title="清除白板" aria-label="清除白板">×</button>
+        <button class="icon-button" id="resetViewBtn" type="button" title="回到中心" aria-label="回到中心">⌂</button>
+        <button class="icon-button" id="exportPngBtn" type="button" title="匯出 PNG" aria-label="匯出 PNG">⇩</button>
+        <button class="icon-button" id="exportJsonBtn" type="button" title="匯出 JSON" aria-label="匯出 JSON">{}</button>
+        <button class="icon-button" id="importJsonBtn" type="button" title="匯入 JSON" aria-label="匯入 JSON">⇧</button>
+      </div>
+
+      <div class="tool-group" aria-label="縮放比例">
+        <span id="zoomLabel">100%</span>
+      </div>
+    </div>
+
+    <div id="status" role="status" aria-live="polite"></div>
+    <input type="file" id="importJsonInput" accept="application/json" hidden>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const toolbar = document.getElementById("toolbar");
+    const colorPicker = document.getElementById("colorPicker");
+    const widthSlider = document.getElementById("widthSlider");
+    const widthValue = document.getElementById("widthValue");
+    const zoomLabel = document.getElementById("zoomLabel");
+    const clearBtn = document.getElementById("clearBtn");
+    const resetViewBtn = document.getElementById("resetViewBtn");
+    const exportPngBtn = document.getElementById("exportPngBtn");
+    const exportJsonBtn = document.getElementById("exportJsonBtn");
+    const importJsonBtn = document.getElementById("importJsonBtn");
+    const importJsonInput = document.getElementById("importJsonInput");
+    const statusBox = document.getElementById("status");
+
+    const MIN_ZOOM = 0.1;
+    const MAX_ZOOM = 5;
+    const GRID_SIZE = 50;
+    const MIN_POINT_DISTANCE = 1.5;
+    const SHAPE_TOOLS = new Set(["line", "rect", "circle", "ellipse"]);
+
+    const viewport = {
+      x: 0,
+      y: 0,
+      zoom: 1
+    };
+
+    let strokes = [];
+    let undoStack = [];
+    let redoStack = [];
+    let activeTool = "pen";
+    let activePointers = new Map();
+    let drawingPointerId = null;
+    let currentStroke = null;
+    let previewShape = null;
+    let isSpacePressed = false;
+    let isPanning = false;
+    let panPointerId = null;
+    let lastPanPoint = null;
+    let pinchState = null;
+    let statusTimer = 0;
+    let layerCanvas = document.createElement("canvas");
+    let layerCtx = layerCanvas.getContext("2d");
+
+    function cssWidth() {
+      return canvas.clientWidth || window.innerWidth;
+    }
+
+    function cssHeight() {
+      return canvas.clientHeight || window.innerHeight;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function newId(prefix) {
+      if (crypto && crypto.randomUUID) {
+        return prefix + "-" + crypto.randomUUID();
+      }
+      return prefix + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    }
+
+    function getCanvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+
+    function screenToWorld(screenX, screenY) {
+      return {
+        x: (screenX - cssWidth() / 2) / viewport.zoom + viewport.x,
+        y: (screenY - cssHeight() / 2) / viewport.zoom + viewport.y
+      };
+    }
+
+    function worldToScreen(worldX, worldY) {
+      return {
+        x: (worldX - viewport.x) * viewport.zoom + cssWidth() / 2,
+        y: (worldY - viewport.y) * viewport.zoom + cssHeight() / 2
+      };
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, window.innerWidth);
+      const height = Math.max(1, window.innerHeight);
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      resizeLayer();
+      redraw();
+    }
+
+    function resizeLayer() {
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, cssWidth());
+      const height = Math.max(1, cssHeight());
+
+      if (layerCanvas.width !== Math.round(width * dpr) || layerCanvas.height !== Math.round(height * dpr)) {
+        layerCanvas.width = Math.round(width * dpr);
+        layerCanvas.height = Math.round(height * dpr);
+      }
+      layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function clearCanvas() {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, cssWidth(), cssHeight());
+    }
+
+    function drawGrid() {
+      const width = cssWidth();
+      const height = cssHeight();
+      const worldTopLeft = screenToWorld(0, 0);
+      const worldBottomRight = screenToWorld(width, height);
+      const gridStep = GRID_SIZE;
+      const minX = Math.floor(worldTopLeft.x / gridStep) * gridStep;
+      const maxX = Math.ceil(worldBottomRight.x / gridStep) * gridStep;
+      const minY = Math.floor(worldTopLeft.y / gridStep) * gridStep;
+      const maxY = Math.ceil(worldBottomRight.y / gridStep) * gridStep;
+
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#e8edf2";
+      ctx.beginPath();
+
+      for (let x = minX; x <= maxX; x += gridStep) {
+        const point = worldToScreen(x, 0);
+        ctx.moveTo(Math.round(point.x) + 0.5, 0);
+        ctx.lineTo(Math.round(point.x) + 0.5, height);
+      }
+
+      for (let y = minY; y <= maxY; y += gridStep) {
+        const point = worldToScreen(0, y);
+        ctx.moveTo(0, Math.round(point.y) + 0.5);
+        ctx.lineTo(width, Math.round(point.y) + 0.5);
+      }
+
+      ctx.stroke();
+
+      const origin = worldToScreen(0, 0);
+      ctx.strokeStyle = "#d0d8e1";
+      ctx.beginPath();
+      ctx.moveTo(Math.round(origin.x) + 0.5, 0);
+      ctx.lineTo(Math.round(origin.x) + 0.5, height);
+      ctx.moveTo(0, Math.round(origin.y) + 0.5);
+      ctx.lineTo(width, Math.round(origin.y) + 0.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawAllStrokes() {
+      resizeLayer();
+      layerCtx.save();
+      layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+      layerCtx.clearRect(0, 0, layerCanvas.width, layerCanvas.height);
+      layerCtx.restore();
+
+      for (const stroke of strokes) {
+        drawStroke(layerCtx, stroke);
+      }
+
+      ctx.drawImage(layerCanvas, 0, 0, cssWidth(), cssHeight());
+    }
+
+    function drawStroke(targetCtx, stroke) {
+      if (!stroke || !stroke.type) return;
+
+      if (stroke.type === "freehand" || stroke.type === "eraser") {
+        drawFreehand(targetCtx, stroke);
+        return;
+      }
+
+      if (stroke.start && stroke.end) {
+        drawShape(targetCtx, stroke);
+      }
+    }
+
+    function drawFreehand(targetCtx, stroke) {
+      if (!stroke.points || stroke.points.length === 0) return;
+
+      targetCtx.save();
+      targetCtx.globalCompositeOperation = stroke.type === "eraser" ? "destination-out" : "source-over";
+      targetCtx.strokeStyle = stroke.color || "#000000";
+      targetCtx.lineWidth = Math.max(1, (stroke.width || 1) * viewport.zoom);
+      targetCtx.lineCap = "round";
+      targetCtx.lineJoin = "round";
+      targetCtx.beginPath();
+
+      const first = worldToScreen(stroke.points[0].x, stroke.points[0].y);
+      targetCtx.moveTo(first.x, first.y);
+
+      if (stroke.points.length === 1) {
+        targetCtx.lineTo(first.x + 0.01, first.y + 0.01);
+      } else {
+        for (let i = 1; i < stroke.points.length; i += 1) {
+          const point = worldToScreen(stroke.points[i].x, stroke.points[i].y);
+          targetCtx.lineTo(point.x, point.y);
+        }
+      }
+
+      targetCtx.stroke();
+      targetCtx.restore();
+    }
+
+    function drawShape(targetCtx, stroke) {
+      const start = worldToScreen(stroke.start.x, stroke.start.y);
+      const end = worldToScreen(stroke.end.x, stroke.end.y);
+      const left = Math.min(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+
+      targetCtx.save();
+      targetCtx.globalCompositeOperation = "source-over";
+      targetCtx.strokeStyle = stroke.color || "#000000";
+      targetCtx.lineWidth = Math.max(1, (stroke.width || 1) * viewport.zoom);
+      targetCtx.lineCap = "round";
+      targetCtx.lineJoin = "round";
+      targetCtx.beginPath();
+
+      if (stroke.type === "line") {
+        targetCtx.moveTo(start.x, start.y);
+        targetCtx.lineTo(end.x, end.y);
+      } else if (stroke.type === "rect") {
+        targetCtx.rect(left, top, width, height);
+      } else if (stroke.type === "circle") {
+        const side = Math.min(width, height);
+        const centerX = start.x + Math.sign(end.x - start.x || 1) * side / 2;
+        const centerY = start.y + Math.sign(end.y - start.y || 1) * side / 2;
+        targetCtx.arc(centerX, centerY, side / 2, 0, Math.PI * 2);
+      } else if (stroke.type === "ellipse") {
+        targetCtx.ellipse(left + width / 2, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+      }
+
+      targetCtx.stroke();
+      targetCtx.restore();
+    }
+
+    function drawPreviewShape() {
+      if (!previewShape) return;
+
+      ctx.save();
+      ctx.globalAlpha = 0.78;
+      ctx.setLineDash([8, 6]);
+      drawStroke(ctx, previewShape);
+      ctx.restore();
+    }
+
+    function redraw() {
+      clearCanvas();
+      drawGrid();
+      drawAllStrokes();
+      drawPreviewShape();
+      updateZoomLabel();
+    }
+
+    function updateZoomLabel() {
+      zoomLabel.textContent = Math.round(viewport.zoom * 100) + "%";
+    }
+
+    function setTool(tool) {
+      activeTool = tool;
+      for (const button of toolbar.querySelectorAll("[data-tool]")) {
+        button.classList.toggle("active", button.dataset.tool === tool);
+      }
+    }
+
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function zoomAt(screenX, screenY, newZoom) {
+      const before = screenToWorld(screenX, screenY);
+      viewport.zoom = clamp(newZoom, MIN_ZOOM, MAX_ZOOM);
+      const after = screenToWorld(screenX, screenY);
+
+      viewport.x += before.x - after.x;
+      viewport.y += before.y - after.y;
+      redraw();
+    }
+
+    function panBy(deltaX, deltaY) {
+      viewport.x -= deltaX / viewport.zoom;
+      viewport.y -= deltaY / viewport.zoom;
+      redraw();
+    }
+
+    function cancelDrawing() {
+      drawingPointerId = null;
+      currentStroke = null;
+      previewShape = null;
+    }
+
+    function commitStroke(stroke) {
+      if (!stroke) return;
+
+      if ((stroke.type === "freehand" || stroke.type === "eraser") && (!stroke.points || stroke.points.length < 1)) {
+        return;
+      }
+
+      if (SHAPE_TOOLS.has(stroke.type) && (!stroke.start || !stroke.end)) {
+        return;
+      }
+
+      strokes.push(stroke);
+      undoStack.push(stroke);
+      redoStack = [];
+    }
+
+    function beginDrawing(event) {
+      const point = getCanvasPoint(event);
+      const world = screenToWorld(point.x, point.y);
+      drawingPointerId = event.pointerId;
+
+      if (activeTool === "pen" || activeTool === "eraser") {
+        currentStroke = {
+          id: newId("stroke"),
+          type: activeTool === "pen" ? "freehand" : "eraser",
+          color: colorPicker.value,
+          width: Number(widthSlider.value),
+          points: [world]
+        };
+        redraw();
+        return;
+      }
+
+      if (SHAPE_TOOLS.has(activeTool)) {
+        previewShape = {
+          id: newId("stroke"),
+          type: activeTool,
+          color: colorPicker.value,
+          width: Number(widthSlider.value),
+          start: world,
+          end: world
+        };
+        redraw();
+      }
+    }
+
+    function continueDrawing(event) {
+      if (drawingPointerId !== event.pointerId) return;
+      const point = getCanvasPoint(event);
+      const world = screenToWorld(point.x, point.y);
+
+      if (currentStroke) {
+        const last = currentStroke.points[currentStroke.points.length - 1];
+        if (distance(last, world) >= MIN_POINT_DISTANCE / viewport.zoom) {
+          currentStroke.points.push(world);
+          redraw();
+        }
+        return;
+      }
+
+      if (previewShape) {
+        previewShape.end = world;
+        redraw();
+      }
+    }
+
+    function endDrawing(event) {
+      if (drawingPointerId !== event.pointerId) return;
+      continueDrawing(event);
+
+      if (currentStroke) {
+        commitStroke(currentStroke);
+      } else if (previewShape) {
+        commitStroke(previewShape);
+      }
+
+      cancelDrawing();
+      redraw();
+    }
+
+    function beginPan(event) {
+      isPanning = true;
+      panPointerId = event.pointerId;
+      lastPanPoint = getCanvasPoint(event);
+      canvas.classList.add("dragging-pan");
+      cancelDrawing();
+    }
+
+    function continuePan(event) {
+      if (!isPanning || panPointerId !== event.pointerId) return;
+
+      const point = getCanvasPoint(event);
+      panBy(point.x - lastPanPoint.x, point.y - lastPanPoint.y);
+      lastPanPoint = point;
+    }
+
+    function endPan(event) {
+      if (panPointerId !== event.pointerId) return;
+      isPanning = false;
+      panPointerId = null;
+      lastPanPoint = null;
+      canvas.classList.remove("dragging-pan");
+    }
+
+    function getPointerPair() {
+      const pointers = Array.from(activePointers.values());
+      if (pointers.length < 2) return null;
+      return [pointers[0], pointers[1]];
+    }
+
+    function getPinchInfo(pair) {
+      const center = {
+        x: (pair[0].x + pair[1].x) / 2,
+        y: (pair[0].y + pair[1].y) / 2
+      };
+      return {
+        center,
+        distance: distance(pair[0], pair[1])
+      };
+    }
+
+    function beginPinch() {
+      const pair = getPointerPair();
+      if (!pair) return;
+
+      cancelDrawing();
+      if (isPanning) {
+        isPanning = false;
+        panPointerId = null;
+        canvas.classList.remove("dragging-pan");
+      }
+
+      const info = getPinchInfo(pair);
+      pinchState = {
+        center: info.center,
+        distance: Math.max(1, info.distance)
+      };
+    }
+
+    function continuePinch() {
+      const pair = getPointerPair();
+      if (!pair || !pinchState) return;
+
+      const info = getPinchInfo(pair);
+      const oldCenter = pinchState.center;
+      const scale = Math.max(1, info.distance) / pinchState.distance;
+
+      panBy(info.center.x - oldCenter.x, info.center.y - oldCenter.y);
+      zoomAt(info.center.x, info.center.y, viewport.zoom * scale);
+
+      pinchState = {
+        center: info.center,
+        distance: Math.max(1, info.distance)
+      };
+    }
+
+    function updateActivePointer(event) {
+      activePointers.set(event.pointerId, getCanvasPoint(event));
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (event.target !== canvas) return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      updateActivePointer(event);
+
+      if (activePointers.size === 2) {
+        beginPinch();
+        return;
+      }
+
+      if (activePointers.size > 2) {
+        cancelDrawing();
+        return;
+      }
+
+      if (event.button === 1 || isSpacePressed) {
+        beginPan(event);
+      } else {
+        beginDrawing(event);
+      }
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (!activePointers.has(event.pointerId)) return;
+      event.preventDefault();
+      updateActivePointer(event);
+
+      if (activePointers.size >= 2) {
+        continuePinch();
+      } else if (isPanning) {
+        continuePan(event);
+      } else {
+        continueDrawing(event);
+      }
+    });
+
+    function finishPointer(event) {
+      if (activePointers.has(event.pointerId)) {
+        activePointers.delete(event.pointerId);
+      }
+
+      if (pinchState) {
+        cancelDrawing();
+        pinchState = null;
+      } else if (isPanning) {
+        endPan(event);
+      } else {
+        endDrawing(event);
+      }
+
+      if (canvas.hasPointerCapture && canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    canvas.addEventListener("pointerup", finishPointer);
+    canvas.addEventListener("pointercancel", finishPointer);
+    canvas.addEventListener("pointerleave", (event) => {
+      if (event.pointerType === "mouse" && event.buttons !== 0) {
+        finishPointer(event);
+      }
+    });
+
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const point = getCanvasPoint(event);
+      const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+      zoomAt(point.x, point.y, viewport.zoom * zoomFactor);
+    }, { passive: false });
+
+    canvas.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+
+    toolbar.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-tool]");
+      if (button) {
+        setTool(button.dataset.tool);
+      }
+    });
+
+    widthSlider.addEventListener("input", () => {
+      widthValue.textContent = widthSlider.value + "px";
+    });
+
+    clearBtn.addEventListener("click", () => {
+      if (confirm("確定要清除整個白板嗎？")) {
+        strokes = [];
+        undoStack = [];
+        redoStack = [];
+        cancelDrawing();
+        redraw();
+        showStatus("白板已清除。");
+      }
+    });
+
+    resetViewBtn.addEventListener("click", () => {
+      viewport.x = 0;
+      viewport.y = 0;
+      viewport.zoom = 1;
+      redraw();
+      showStatus("已回到白板中心。");
+    });
+
+    exportPngBtn.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = "whiteboard.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showStatus("已匯出 PNG。");
+    });
+
+    exportJsonBtn.addEventListener("click", exportJSON);
+
+    importJsonBtn.addEventListener("click", () => {
+      importJsonInput.value = "";
+      importJsonInput.click();
+    });
+
+    importJsonInput.addEventListener("change", async () => {
+      const file = importJsonInput.files && importJsonInput.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        importJSON(data);
+        showStatus("JSON 已匯入。");
+      } catch (error) {
+        alert("匯入失敗：這不是有效的 JSON 檔案。");
+      }
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space" && !isEditingTextInput(event.target)) {
+        event.preventDefault();
+        isSpacePressed = true;
+        canvas.classList.add("panning");
+      }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (event.code === "Space") {
+        isSpacePressed = false;
+        canvas.classList.remove("panning");
+      }
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+
+    function isEditingTextInput(target) {
+      return target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    }
+
+    function exportJSON() {
+      const data = {
+        version: "1.0",
+        createdAt: new Date().toISOString(),
+        viewport: {
+          x: viewport.x,
+          y: viewport.y,
+          zoom: viewport.zoom
+        },
+        strokes
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "whiteboard.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showStatus("已匯出 JSON。");
+    }
+
+    function importJSON(data) {
+      if (!data || !Array.isArray(data.strokes)) {
+        alert("匯入失敗：JSON 格式不符合白板資料格式。");
+        return;
+      }
+
+      strokes = data.strokes.filter(isValidStroke).map(cloneStroke);
+      undoStack = [];
+      redoStack = [];
+
+      if (data.viewport && Number.isFinite(data.viewport.x) && Number.isFinite(data.viewport.y) && Number.isFinite(data.viewport.zoom)) {
+        viewport.x = data.viewport.x;
+        viewport.y = data.viewport.y;
+        viewport.zoom = clamp(data.viewport.zoom, MIN_ZOOM, MAX_ZOOM);
+      }
+
+      cancelDrawing();
+      redraw();
+    }
+
+    function isValidPoint(point) {
+      return point && Number.isFinite(point.x) && Number.isFinite(point.y);
+    }
+
+    function isValidStroke(stroke) {
+      if (!stroke || typeof stroke.type !== "string") return false;
+
+      if (stroke.type === "freehand" || stroke.type === "eraser") {
+        return Array.isArray(stroke.points) && stroke.points.every(isValidPoint);
+      }
+
+      if (SHAPE_TOOLS.has(stroke.type)) {
+        return isValidPoint(stroke.start) && isValidPoint(stroke.end);
+      }
+
+      return false;
+    }
+
+    function cloneStroke(stroke) {
+      return JSON.parse(JSON.stringify(stroke));
+    }
+
+    function showStatus(message) {
+      clearTimeout(statusTimer);
+      statusBox.textContent = message;
+      statusBox.classList.add("visible");
+      statusTimer = setTimeout(() => {
+        statusBox.classList.remove("visible");
+      }, 1800);
+    }
+
+    resizeCanvas();
+    setTool(activeTool);
+  </script>
+</body>
+</html>
