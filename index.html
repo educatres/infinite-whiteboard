@@ -356,6 +356,7 @@
     const STROKE_ERASER_TOLERANCE = 8;
     const AUTOSAVE_KEY = "infinite-whiteboard.autosave.v1";
     const AUTOSAVE_DELAY = 250;
+    const PINCH_ZOOM_DEADZONE = 0.015;
     const SHAPE_TOOLS = new Set(["line", "rect", "circle", "ellipse"]);
 
     const viewport = {
@@ -1104,10 +1105,13 @@
 
       const info = getPinchInfo(pair);
       const oldCenter = pinchState.center;
-      const scale = Math.max(1, info.distance) / pinchState.distance;
+      const rawScale = Math.max(1, info.distance) / pinchState.distance;
+      const scale = Math.abs(rawScale - 1) < PINCH_ZOOM_DEADZONE ? 1 : rawScale;
 
       panBy(info.center.x - oldCenter.x, info.center.y - oldCenter.y);
-      zoomAt(info.center.x, info.center.y, viewport.zoom * scale);
+      if (scale !== 1) {
+        zoomAt(info.center.x, info.center.y, viewport.zoom * scale);
+      }
 
       pinchState = {
         center: info.center,
