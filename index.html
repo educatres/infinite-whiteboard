@@ -289,6 +289,7 @@
         <button class="icon-button active" type="button" data-tool="pen" title="筆刷" aria-label="筆刷">✎</button>
         <button class="icon-button" type="button" data-tool="eraser" title="橡皮擦" aria-label="橡皮擦">⌫</button>
         <button class="icon-button" type="button" data-tool="strokeEraser" title="筆畫橡皮擦" aria-label="筆畫橡皮擦">⌧</button>
+        <button class="icon-button" type="button" data-tool="select" title="選擇筆畫" aria-label="選擇筆畫">☝</button>
         <button class="icon-button" type="button" data-tool="pan" title="平移" aria-label="平移">↔</button>
         <button class="icon-button" type="button" data-tool="line" title="直線" aria-label="直線">╱</button>
         <button class="icon-button" type="button" data-tool="rect" title="長方形" aria-label="長方形">□</button>
@@ -373,6 +374,11 @@
     let activePointers = new Map();
     let drawingPointerId = null;
     let strokeErasePointerId = null;
+    let selectionPointerId = null;
+    let selectedStrokeId = null;
+    let selectionStartWorld = null;
+    let selectionOriginalStroke = null;
+    let selectionMoved = false;
     let erasedStrokeIds = new Set();
     let currentStroke = null;
     let previewShape = null;
@@ -635,12 +641,52 @@
       ctx.restore();
     }
 
+    function drawSelectionBox() {
+      if (activeTool !== "select" || !selectedStrokeId) return;
+
+      const stroke = findStrokeById(selectedStrokeId);
+      const bounds = getStrokeBounds(stroke);
+      if (!bounds) return;
+
+      const padding = Math.max(8, (stroke.width || 1) * viewport.zoom / 2 + 6);
+      const topLeft = worldToScreen(bounds.minX, bounds.minY);
+      const bottomRight = worldToScreen(bounds.maxX, bounds.maxY);
+      const left = Math.min(topLeft.x, bottomRight.x) - padding;
+      const top = Math.min(topLeft.y, bottomRight.y) - padding;
+      const width = Math.abs(bottomRight.x - topLeft.x) + padding * 2;
+      const height = Math.abs(bottomRight.y - topLeft.y) + padding * 2;
+
+      ctx.save();
+      ctx.strokeStyle = "#0f8b8d";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 5]);
+      ctx.strokeRect(left, top, width, height);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#0f8b8d";
+
+      const handles = [
+        [left, top],
+        [left + width, top],
+        [left + width, top + height],
+        [left, top + height]
+      ];
+      for (const [x, y] of handles) {
+        ctx.beginPath();
+        ctx.rect(x - 3, y - 3, 6, 6);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function redraw() {
       clearCanvas();
       drawGrid();
       drawAllStrokes();
       drawStroke(ctx, currentStroke);
       drawPreviewShape();
+      drawSelectionBox();
       updateZoomLabel();
     }
 
@@ -654,6 +700,7 @@
         button.classList.toggle("active", button.dataset.tool === tool);
       }
       updatePanCursor();
+      requestRedraw();
     }
 
     function updatePanCursor() {
@@ -716,6 +763,7 @@
         strokes = data.strokes.filter(isValidStroke).map(cloneStroke);
         undoStack = [];
         redoStack = [];
+        selectedStrokeId = null;
 
         if (data.viewport && Number.isFinite(data.viewport.x) && Number.isFinite(data.viewport.y) && Number.isFinite(data.viewport.zoom)) {
           viewport.x = data.viewport.x;
@@ -775,9 +823,69 @@
     function cancelDrawing() {
       drawingPointerId = null;
       strokeErasePointerId = null;
+      selectionPointerId = null;
+      selectionStartWorld = null;
+      selectionOriginalStroke = null;
+      selectionMoved = false;
       erasedStrokeIds.clear();
       currentStroke = null;
       previewShape = null;
+    }
+
+    function beginSelection(event, world) {
+      selectionPointerId = event.pointerId;
+      selectionStartWorld = world;
+      selectionMoved = false;
+
+      const hit = findStrokeAt(world);
+      if (!hit) {
+        selectedStrokeId = null;
+        selectionOriginalStroke = null;
+        requestRedraw();
+        return;
+      }
+
+      selectedStrokeId = hit.stroke.id;
+      selectionOriginalStroke = cloneStroke(hit.stroke);
+      requestRedraw();
+    }
+
+    function continueSelection(world, pointerId) {
+      if (selectionPointerId !== pointerId || !selectedStrokeId || !selectionOriginalStroke || !selectionStartWorld) return;
+
+      const deltaX = world.x - selectionStartWorld.x;
+      const deltaY = world.y - selectionStartWorld.y;
+      const moved = Math.hypot(deltaX, deltaY) >= MIN_POINT_DISTANCE / viewport.zoom;
+      if (!moved && !selectionMoved) return;
+
+      const movedStroke = cloneStroke(selectionOriginalStroke);
+      translateStroke(movedStroke, deltaX, deltaY);
+
+      if (replaceStrokeById(selectedStrokeId, movedStroke)) {
+        selectionMoved = true;
+        markLayerDirty();
+        requestRedraw();
+      }
+    }
+
+    function endSelection(event) {
+      if (selectionPointerId !== event.pointerId) return;
+
+      const finalStroke = selectedStrokeId ? findStrokeById(selectedStrokeId) : null;
+      if (selectionMoved && selectionOriginalStroke && finalStroke) {
+        pushUndoAction({
+          type: "move",
+          strokeId: selectedStrokeId,
+          before: selectionOriginalStroke,
+          after: cloneStroke(finalStroke)
+        });
+        scheduleAutosave();
+      }
+
+      selectionPointerId = null;
+      selectionStartWorld = null;
+      selectionOriginalStroke = null;
+      selectionMoved = false;
     }
 
     function pushUndoAction(action) {
@@ -788,6 +896,87 @@
 
     function updateUndoButton() {
       undoBtn.disabled = undoStack.length === 0;
+    }
+
+    function findStrokeById(id) {
+      return strokes.find((stroke) => stroke.id === id) || null;
+    }
+
+    function findStrokeIndexById(id) {
+      return strokes.findIndex((stroke) => stroke.id === id);
+    }
+
+    function replaceStrokeById(id, stroke) {
+      const index = findStrokeIndexById(id);
+      if (index >= 0) {
+        strokes[index] = stroke;
+        return true;
+      }
+      return false;
+    }
+
+    function translateStroke(stroke, deltaX, deltaY) {
+      if (!stroke) return;
+
+      if (stroke.points) {
+        for (const point of stroke.points) {
+          point.x += deltaX;
+          point.y += deltaY;
+        }
+      }
+
+      if (stroke.start) {
+        stroke.start.x += deltaX;
+        stroke.start.y += deltaY;
+      }
+
+      if (stroke.end) {
+        stroke.end.x += deltaX;
+        stroke.end.y += deltaY;
+      }
+    }
+
+    function getStrokeBounds(stroke) {
+      if (!stroke) return null;
+
+      const points = [];
+      if (stroke.points) points.push(...stroke.points);
+      if (stroke.start) points.push(stroke.start);
+      if (stroke.end) points.push(stroke.end);
+      if (points.length === 0) return null;
+
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (const point of points) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+
+      if (stroke.type === "circle" && stroke.start && stroke.end) {
+        const width = Math.abs(stroke.end.x - stroke.start.x);
+        const height = Math.abs(stroke.end.y - stroke.start.y);
+        const side = Math.min(width, height);
+        const circleEnd = {
+          x: stroke.start.x + Math.sign(stroke.end.x - stroke.start.x || 1) * side,
+          y: stroke.start.y + Math.sign(stroke.end.y - stroke.start.y || 1) * side
+        };
+        minX = Math.min(stroke.start.x, circleEnd.x);
+        minY = Math.min(stroke.start.y, circleEnd.y);
+        maxX = Math.max(stroke.start.x, circleEnd.x);
+        maxY = Math.max(stroke.start.y, circleEnd.y);
+      }
+
+      return {
+        minX,
+        minY,
+        maxX,
+        maxY
+      };
     }
 
     function commitStroke(stroke) {
@@ -820,11 +1009,19 @@
 
       if (action.type === "add") {
         removeStrokeById(action.stroke.id);
+        if (selectedStrokeId === action.stroke.id) {
+          selectedStrokeId = null;
+        }
       } else if (action.type === "delete") {
         const insertAt = clamp(action.index, 0, strokes.length);
         strokes.splice(insertAt, 0, action.stroke);
+        selectedStrokeId = action.stroke.id;
+      } else if (action.type === "move") {
+        replaceStrokeById(action.strokeId, cloneStroke(action.before));
+        selectedStrokeId = action.strokeId;
       } else if (action.type === "clear") {
         strokes = action.strokes.map(cloneStroke);
+        selectedStrokeId = null;
       }
 
       redoStack.push(action);
@@ -837,7 +1034,7 @@
     }
 
     function removeStrokeById(id) {
-      const index = strokes.findIndex((stroke) => stroke.id === id);
+      const index = findStrokeIndexById(id);
       if (index >= 0) {
         strokes.splice(index, 1);
       }
@@ -848,6 +1045,9 @@
       if (!hit || erasedStrokeIds.has(hit.stroke.id)) return false;
 
       strokes.splice(hit.index, 1);
+      if (selectedStrokeId === hit.stroke.id) {
+        selectedStrokeId = null;
+      }
       erasedStrokeIds.add(hit.stroke.id);
       pushUndoAction({
         type: "delete",
@@ -996,6 +1196,11 @@
         return;
       }
 
+      if (activeTool === "select") {
+        beginSelection(event, world);
+        return;
+      }
+
       if (activeTool === "pen" || activeTool === "eraser") {
         currentStroke = {
           id: newId("stroke"),
@@ -1022,7 +1227,8 @@
     }
 
     function continueDrawing(event) {
-      const samples = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [event];
+      const coalesced = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
+      const samples = coalesced.length > 0 ? coalesced : [event];
 
       for (const sample of samples) {
         continueDrawingPoint(sample, event.pointerId);
@@ -1035,6 +1241,11 @@
 
       if (activeTool === "strokeEraser" && strokeErasePointerId === pointerId) {
         eraseStrokeAt(world);
+        return;
+      }
+
+      if (activeTool === "select") {
+        continueSelection(world, pointerId);
         return;
       }
 
@@ -1059,6 +1270,11 @@
       if (activeTool === "strokeEraser" && strokeErasePointerId === event.pointerId) {
         strokeErasePointerId = null;
         erasedStrokeIds.clear();
+        return;
+      }
+
+      if (activeTool === "select") {
+        endSelection(event);
         return;
       }
 
@@ -1288,6 +1504,7 @@
           });
         }
         strokes = [];
+        selectedStrokeId = null;
         redoStack = [];
         cancelDrawing();
         markLayerDirty();
@@ -1406,6 +1623,7 @@
       strokes = data.strokes.filter(isValidStroke).map(cloneStroke);
       undoStack = [];
       redoStack = [];
+      selectedStrokeId = null;
       updateUndoButton();
 
       if (data.viewport && Number.isFinite(data.viewport.x) && Number.isFinite(data.viewport.y) && Number.isFinite(data.viewport.zoom)) {
