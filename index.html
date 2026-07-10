@@ -128,6 +128,14 @@
       transform: translateY(1px);
     }
 
+    button:disabled {
+      color: #9aa5b4;
+      background: #f3f6f8;
+      cursor: not-allowed;
+      opacity: 0.68;
+      transform: none;
+    }
+
     button.active {
       color: var(--accent);
       border-color: rgba(15, 139, 141, 0.42);
@@ -270,6 +278,7 @@
       <div class="tool-group" aria-label="繪圖工具">
         <button class="icon-button active" type="button" data-tool="pen" title="筆刷" aria-label="筆刷">✎</button>
         <button class="icon-button" type="button" data-tool="eraser" title="橡皮擦" aria-label="橡皮擦">⌫</button>
+        <button class="icon-button" type="button" data-tool="strokeEraser" title="筆畫橡皮擦" aria-label="筆畫橡皮擦">⌧</button>
         <button class="icon-button" type="button" data-tool="line" title="直線" aria-label="直線">╱</button>
         <button class="icon-button" type="button" data-tool="rect" title="長方形" aria-label="長方形">□</button>
         <button class="icon-button" type="button" data-tool="circle" title="圓形" aria-label="圓形">○</button>
@@ -294,6 +303,7 @@
       </div>
 
       <div class="tool-group" aria-label="白板操作">
+        <button class="icon-button" id="undoBtn" type="button" title="返回上一步" aria-label="返回上一步" disabled>↶</button>
         <button class="icon-button danger" id="clearBtn" type="button" title="清除白板" aria-label="清除白板">×</button>
         <button class="icon-button" id="resetViewBtn" type="button" title="回到中心" aria-label="回到中心">⌂</button>
         <button class="icon-button" id="exportPngBtn" type="button" title="匯出 PNG" aria-label="匯出 PNG">⇩</button>
@@ -319,6 +329,7 @@
     const widthValue = document.getElementById("widthValue");
     const smoothToggleBtn = document.getElementById("smoothToggleBtn");
     const zoomLabel = document.getElementById("zoomLabel");
+    const undoBtn = document.getElementById("undoBtn");
     const clearBtn = document.getElementById("clearBtn");
     const resetViewBtn = document.getElementById("resetViewBtn");
     const exportPngBtn = document.getElementById("exportPngBtn");
@@ -331,6 +342,7 @@
     const MAX_ZOOM = 5;
     const GRID_SIZE = 50;
     const MIN_POINT_DISTANCE = 1.5;
+    const STROKE_ERASER_TOLERANCE = 8;
     const SHAPE_TOOLS = new Set(["line", "rect", "circle", "ellipse"]);
 
     const viewport = {
@@ -346,6 +358,8 @@
     let smoothStrokes = true;
     let activePointers = new Map();
     let drawingPointerId = null;
+    let strokeErasePointerId = null;
+    let erasedStrokeIds = new Set();
     let currentStroke = null;
     let previewShape = null;
     let isSpacePressed = false;
@@ -633,8 +647,20 @@
 
     function cancelDrawing() {
       drawingPointerId = null;
+      strokeErasePointerId = null;
+      erasedStrokeIds.clear();
       currentStroke = null;
       previewShape = null;
+    }
+
+    function pushUndoAction(action) {
+      undoStack.push(action);
+      redoStack = [];
+      updateUndoButton();
+    }
+
+    function updateUndoButton() {
+      undoBtn.disabled = undoStack.length === 0;
     }
 
     function commitStroke(stroke) {
@@ -649,14 +675,193 @@
       }
 
       strokes.push(stroke);
-      undoStack.push(stroke);
-      redoStack = [];
+      pushUndoAction({
+        type: "add",
+        stroke
+      });
+    }
+
+    function undoLastAction() {
+      const action = undoStack.pop();
+      if (!action) {
+        showStatus("沒有可以返回的動作。");
+        updateUndoButton();
+        return;
+      }
+
+      if (action.type === "add") {
+        removeStrokeById(action.stroke.id);
+      } else if (action.type === "delete") {
+        const insertAt = clamp(action.index, 0, strokes.length);
+        strokes.splice(insertAt, 0, action.stroke);
+      } else if (action.type === "clear") {
+        strokes = action.strokes.map(cloneStroke);
+      }
+
+      redoStack.push(action);
+      cancelDrawing();
+      redraw();
+      updateUndoButton();
+      showStatus("已返回上一步。");
+    }
+
+    function removeStrokeById(id) {
+      const index = strokes.findIndex((stroke) => stroke.id === id);
+      if (index >= 0) {
+        strokes.splice(index, 1);
+      }
+    }
+
+    function eraseStrokeAt(world) {
+      const hit = findStrokeAt(world);
+      if (!hit || erasedStrokeIds.has(hit.stroke.id)) return false;
+
+      strokes.splice(hit.index, 1);
+      erasedStrokeIds.add(hit.stroke.id);
+      pushUndoAction({
+        type: "delete",
+        stroke: hit.stroke,
+        index: hit.index
+      });
+      redraw();
+      return true;
+    }
+
+    function findStrokeAt(world) {
+      for (let i = strokes.length - 1; i >= 0; i -= 1) {
+        const stroke = strokes[i];
+        if (stroke.type === "eraser") continue;
+
+        if (isStrokeHit(stroke, world)) {
+          return {
+            stroke,
+            index: i
+          };
+        }
+      }
+      return null;
+    }
+
+    function isStrokeHit(stroke, world) {
+      const tolerance = Math.max(STROKE_ERASER_TOLERANCE / viewport.zoom, (stroke.width || 1) / 2 + 3 / viewport.zoom);
+
+      if (stroke.type === "freehand") {
+        return isPointNearPolyline(world, stroke.points || [], tolerance);
+      }
+
+      if (stroke.type === "line") {
+        return distanceToSegment(world, stroke.start, stroke.end) <= tolerance;
+      }
+
+      if (stroke.type === "rect") {
+        return isPointNearRect(world, stroke.start, stroke.end, tolerance);
+      }
+
+      if (stroke.type === "circle") {
+        return isPointNearCircle(world, stroke.start, stroke.end, tolerance);
+      }
+
+      if (stroke.type === "ellipse") {
+        return isPointNearEllipse(world, stroke.start, stroke.end, tolerance);
+      }
+
+      return false;
+    }
+
+    function isPointNearPolyline(point, points, tolerance) {
+      if (points.length === 0) return false;
+      if (points.length === 1) return distance(point, points[0]) <= tolerance;
+
+      for (let i = 1; i < points.length; i += 1) {
+        if (distanceToSegment(point, points[i - 1], points[i]) <= tolerance) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function distanceToSegment(point, start, end) {
+      if (!isValidPoint(start) || !isValidPoint(end)) return Infinity;
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const lengthSq = dx * dx + dy * dy;
+      if (lengthSq === 0) return distance(point, start);
+
+      const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq, 0, 1);
+      return distance(point, {
+        x: start.x + dx * t,
+        y: start.y + dy * t
+      });
+    }
+
+    function isPointNearRect(point, start, end, tolerance) {
+      if (!isValidPoint(start) || !isValidPoint(end)) return false;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      const corners = [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom }
+      ];
+
+      return corners.some((corner, index) => distanceToSegment(point, corner, corners[(index + 1) % corners.length]) <= tolerance);
+    }
+
+    function isPointNearCircle(point, start, end, tolerance) {
+      if (!isValidPoint(start) || !isValidPoint(end)) return false;
+
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      const side = Math.min(width, height);
+      if (side === 0) return distance(point, start) <= tolerance;
+
+      const center = {
+        x: start.x + Math.sign(end.x - start.x || 1) * side / 2,
+        y: start.y + Math.sign(end.y - start.y || 1) * side / 2
+      };
+
+      return Math.abs(distance(point, center) - side / 2) <= tolerance;
+    }
+
+    function isPointNearEllipse(point, start, end, tolerance) {
+      if (!isValidPoint(start) || !isValidPoint(end)) return false;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      const rx = (right - left) / 2;
+      const ry = (bottom - top) / 2;
+      if (rx === 0 || ry === 0) {
+        return distanceToSegment(point, start, end) <= tolerance;
+      }
+
+      const center = {
+        x: left + rx,
+        y: top + ry
+      };
+      const normalized = Math.hypot((point.x - center.x) / rx, (point.y - center.y) / ry);
+      const averageRadius = (rx + ry) / 2;
+
+      return Math.abs(normalized - 1) * averageRadius <= tolerance;
     }
 
     function beginDrawing(event) {
       const point = getCanvasPoint(event);
       const world = screenToWorld(point.x, point.y);
       drawingPointerId = event.pointerId;
+
+      if (activeTool === "strokeEraser") {
+        strokeErasePointerId = event.pointerId;
+        erasedStrokeIds = new Set();
+        eraseStrokeAt(world);
+        return;
+      }
 
       if (activeTool === "pen" || activeTool === "eraser") {
         currentStroke = {
@@ -684,9 +889,15 @@
     }
 
     function continueDrawing(event) {
-      if (drawingPointerId !== event.pointerId) return;
       const point = getCanvasPoint(event);
       const world = screenToWorld(point.x, point.y);
+
+      if (activeTool === "strokeEraser" && strokeErasePointerId === event.pointerId) {
+        eraseStrokeAt(world);
+        return;
+      }
+
+      if (drawingPointerId !== event.pointerId) return;
 
       if (currentStroke) {
         const last = currentStroke.points[currentStroke.points.length - 1];
@@ -704,6 +915,12 @@
     }
 
     function endDrawing(event) {
+      if (activeTool === "strokeEraser" && strokeErasePointerId === event.pointerId) {
+        strokeErasePointerId = null;
+        erasedStrokeIds.clear();
+        return;
+      }
+
       if (drawingPointerId !== event.pointerId) return;
       continueDrawing(event);
 
@@ -899,10 +1116,17 @@
       showStatus(smoothStrokes ? "筆跡平滑已開啟。" : "筆跡平滑已關閉。");
     });
 
+    undoBtn.addEventListener("click", undoLastAction);
+
     clearBtn.addEventListener("click", () => {
       if (confirm("確定要清除整個白板嗎？")) {
+        if (strokes.length > 0) {
+          pushUndoAction({
+            type: "clear",
+            strokes: strokes.map(cloneStroke)
+          });
+        }
         strokes = [];
-        undoStack = [];
         redoStack = [];
         cancelDrawing();
         redraw();
@@ -950,6 +1174,12 @@
     });
 
     window.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.code === "KeyZ" && !isEditingTextInput(event.target)) {
+        event.preventDefault();
+        undoLastAction();
+        return;
+      }
+
       if (event.code === "Space" && !isEditingTextInput(event.target)) {
         event.preventDefault();
         isSpacePressed = true;
@@ -1004,6 +1234,7 @@
       strokes = data.strokes.filter(isValidStroke).map(cloneStroke);
       undoStack = [];
       redoStack = [];
+      updateUndoButton();
 
       if (data.viewport && Number.isFinite(data.viewport.x) && Number.isFinite(data.viewport.y) && Number.isFinite(data.viewport.zoom)) {
         viewport.x = data.viewport.x;
@@ -1049,6 +1280,7 @@
     resizeCanvas();
     setTool(activeTool);
     updateActiveSwatch();
+    updateUndoButton();
   </script>
 </body>
 </html>
