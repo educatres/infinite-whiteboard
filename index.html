@@ -333,6 +333,12 @@
 
       <div class="tool-group" aria-label="白板操作">
         <button id="addStickyBtn" type="button" title="加入便條" aria-label="加入便條">＋便條</button>
+        <div class="swatch-row" aria-label="便條顏色">
+          <button class="color-swatch active" type="button" data-sticky-color="#fef08a" style="--swatch-color: #fef08a" title="淡黃色便條" aria-label="淡黃色便條"></button>
+          <button class="color-swatch" type="button" data-sticky-color="#bbf7d0" style="--swatch-color: #bbf7d0" title="淡綠色便條" aria-label="淡綠色便條"></button>
+          <button class="color-swatch" type="button" data-sticky-color="#fbcfe8" style="--swatch-color: #fbcfe8" title="粉紅色便條" aria-label="粉紅色便條"></button>
+          <button class="color-swatch" type="button" data-sticky-color="#bfdbfe" style="--swatch-color: #bfdbfe" title="粉藍色便條" aria-label="粉藍色便條"></button>
+        </div>
         <button class="icon-button" id="undoBtn" type="button" title="返回上一步" aria-label="返回上一步" disabled>↶</button>
         <button class="icon-button danger" id="deleteSelectedBtn" type="button" title="刪除所選" aria-label="刪除所選" disabled>⌦</button>
         <button class="icon-button danger" id="clearBtn" type="button" title="清除白板" aria-label="清除白板">×</button>
@@ -378,7 +384,8 @@
     const GRID_SIZE = 50;
     const MIN_POINT_DISTANCE = 1.5;
     const STROKE_ERASER_TOLERANCE = 8;
-    const DEFAULT_STICKY_SIZE = 100;
+    const DEFAULT_STICKY_COLOR = "#fef08a";
+    const DEFAULT_STICKY_SIZE = 200;
     const MIN_STICKY_SIZE = 60;
     const MAX_STICKY_SIZE = 800;
     const STICKY_CONTROL_SIZE = 22;
@@ -399,6 +406,7 @@
     let undoStack = [];
     let redoStack = [];
     let activeTool = "pen";
+    let stickyColor = DEFAULT_STICKY_COLOR;
     let smoothStrokes = true;
     let activePointers = new Map();
     let drawingPointerId = null;
@@ -948,6 +956,13 @@
       }
     }
 
+    function updateActiveStickySwatch() {
+      const selectedColor = stickyColor.toLowerCase();
+      for (const swatch of toolbar.querySelectorAll("[data-sticky-color]")) {
+        swatch.classList.toggle("active", swatch.dataset.stickyColor.toLowerCase() === selectedColor);
+      }
+    }
+
     function getSavedBoardData() {
       return {
         version: "1.0",
@@ -960,6 +975,7 @@
         settings: {
           color: colorPicker.value,
           width: Number(widthSlider.value),
+          stickyColor,
           smoothStrokes
         },
         strokes
@@ -1015,6 +1031,10 @@
             widthValue.textContent = widthSlider.value + "px";
           }
 
+          if (typeof data.settings.stickyColor === "string" && /^#[0-9a-f]{6}$/i.test(data.settings.stickyColor)) {
+            stickyColor = data.settings.stickyColor;
+          }
+
           if (typeof data.settings.smoothStrokes === "boolean") {
             smoothStrokes = data.settings.smoothStrokes;
             smoothToggleBtn.classList.toggle("active", smoothStrokes);
@@ -1024,6 +1044,7 @@
 
         updateUndoButton();
         updateActiveSwatch();
+        updateActiveStickySwatch();
         markLayerDirty();
       } catch (error) {
         console.warn("自動儲存資料格式錯誤，已忽略。", error);
@@ -1072,7 +1093,7 @@
       const note = {
         id: newId("sticky"),
         type: "sticky",
-        color: colorPicker.value,
+        color: stickyColor,
         x: center.x - DEFAULT_STICKY_SIZE / 2,
         y: center.y - DEFAULT_STICKY_SIZE / 2,
         noteWidth: DEFAULT_STICKY_SIZE,
@@ -1090,7 +1111,7 @@
       });
       requestRedraw();
       scheduleAutosave();
-      showStatus("已加入 100×100 便條。");
+      showStatus("已加入 200×200 便條。");
     }
 
     function handleStickyControl(event, control) {
@@ -1988,6 +2009,13 @@
         updateActiveSwatch();
         scheduleAutosave();
       }
+
+      const stickySwatch = event.target.closest("[data-sticky-color]");
+      if (stickySwatch) {
+        stickyColor = stickySwatch.dataset.stickyColor;
+        updateActiveStickySwatch();
+        scheduleAutosave();
+      }
     });
 
     colorPicker.addEventListener("input", () => {
@@ -2233,6 +2261,7 @@
     resizeCanvas();
     setTool(activeTool);
     updateActiveSwatch();
+    updateActiveStickySwatch();
     updateUndoButton();
   </script>
 </body>
