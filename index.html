@@ -19,6 +19,7 @@
 
     * {
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
 
     html,
@@ -36,6 +37,9 @@
       position: fixed;
       inset: 0;
       overscroll-behavior: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     #app {
@@ -43,6 +47,9 @@
       inset: 0;
       min-width: 320px;
       min-height: 320px;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     #board {
@@ -51,6 +58,9 @@
       height: 100vh;
       background: #fff;
       touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
       cursor: crosshair;
     }
 
@@ -1020,6 +1030,12 @@
       activePointers.set(event.pointerId, getCanvasPoint(event));
     }
 
+    function preventAppGesture(event) {
+      if (event.target.closest && event.target.closest("#app")) {
+        event.preventDefault();
+      }
+    }
+
     canvas.addEventListener("pointerdown", (event) => {
       if (event.target !== canvas) return;
       event.preventDefault();
@@ -1091,9 +1107,11 @@
       zoomAt(point.x, point.y, viewport.zoom * zoomFactor);
     }, { passive: false });
 
-    canvas.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-    });
+    document.addEventListener("contextmenu", preventAppGesture, { capture: true });
+    document.addEventListener("selectstart", preventAppGesture, { capture: true });
+    document.addEventListener("gesturestart", preventAppGesture, { passive: false });
+    document.addEventListener("gesturechange", preventAppGesture, { passive: false });
+    document.addEventListener("gestureend", preventAppGesture, { passive: false });
 
     toolbar.addEventListener("click", (event) => {
       const button = event.target.closest("[data-tool]");
