@@ -200,6 +200,38 @@
       box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(15, 139, 141, 0.18);
     }
 
+    .palette {
+      display: grid;
+      grid-template-columns: repeat(12, 20px);
+      grid-template-rows: repeat(2, 20px);
+      gap: 3px;
+      padding: 5px;
+      border: 1px solid rgba(38, 56, 79, 0.14);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .palette-swatch {
+      width: 20px;
+      min-width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+      background: var(--swatch-color);
+      box-shadow: none;
+    }
+
+    .palette-swatch:hover {
+      transform: scale(1.12);
+      z-index: 1;
+    }
+
+    .palette-swatch.active {
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 0 1px #fff, 0 0 0 3px rgba(15, 139, 141, 0.24);
+    }
+
     .width-control {
       display: flex;
       align-items: center;
@@ -304,14 +336,23 @@
     <div id="toolbar" role="toolbar" aria-label="白板工具列">
       <div class="tool-group" aria-label="繪圖工具">
         <button class="icon-button active" type="button" data-tool="pen" title="筆刷" aria-label="筆刷">✎</button>
+        <button class="icon-button" type="button" data-tool="pencil" title="鉛筆" aria-label="鉛筆">✏</button>
+        <button class="icon-button" type="button" data-tool="marker" title="麥克筆" aria-label="麥克筆">▮</button>
+        <button class="icon-button" type="button" data-tool="brush" title="毛筆" aria-label="毛筆">🖌</button>
+        <button class="icon-button" type="button" data-tool="highlighter" title="螢光筆" aria-label="螢光筆">▰</button>
         <button class="icon-button" type="button" data-tool="eraser" title="橡皮擦" aria-label="橡皮擦">⌫</button>
         <button class="icon-button" type="button" data-tool="strokeEraser" title="筆畫橡皮擦" aria-label="筆畫橡皮擦">⌧</button>
         <button class="icon-button" type="button" data-tool="select" title="選擇筆畫" aria-label="選擇筆畫">☝</button>
         <button class="icon-button" type="button" data-tool="pan" title="平移" aria-label="平移">↔</button>
         <button class="icon-button" type="button" data-tool="line" title="直線" aria-label="直線">╱</button>
+        <button class="icon-button" type="button" data-tool="arrow" title="箭頭" aria-label="箭頭">➜</button>
         <button class="icon-button" type="button" data-tool="rect" title="長方形" aria-label="長方形">□</button>
         <button class="icon-button" type="button" data-tool="circle" title="圓形" aria-label="圓形">○</button>
         <button class="icon-button" type="button" data-tool="ellipse" title="橢圓形" aria-label="橢圓形">◯</button>
+        <button class="icon-button" type="button" data-tool="triangle" title="三角形" aria-label="三角形">△</button>
+        <button class="icon-button" type="button" data-tool="diamond" title="菱形" aria-label="菱形">◇</button>
+        <button class="icon-button" type="button" data-tool="hexagon" title="六邊形" aria-label="六邊形">⬡</button>
+        <button class="icon-button" type="button" data-tool="fill" title="填色" aria-label="填色">▣</button>
       </div>
 
       <div class="tool-group" aria-label="筆觸設定">
@@ -322,6 +363,33 @@
           <button class="color-swatch" type="button" data-color="#dc2626" style="--swatch-color: #dc2626" title="紅色" aria-label="紅色"></button>
           <button class="color-swatch" type="button" data-color="#15803d" style="--swatch-color: #15803d" title="綠色" aria-label="綠色"></button>
           <button class="color-swatch" type="button" data-color="#7e22ce" style="--swatch-color: #7e22ce" title="紫色" aria-label="紫色"></button>
+        </div>
+        <div class="palette" aria-label="調色盤">
+          <button class="palette-swatch" type="button" data-color="#000000" style="--swatch-color: #000000" title="黑色" aria-label="黑色"></button>
+          <button class="palette-swatch" type="button" data-color="#404040" style="--swatch-color: #404040" title="深灰色" aria-label="深灰色"></button>
+          <button class="palette-swatch" type="button" data-color="#808080" style="--swatch-color: #808080" title="灰色" aria-label="灰色"></button>
+          <button class="palette-swatch" type="button" data-color="#bfbfbf" style="--swatch-color: #bfbfbf" title="淺灰色" aria-label="淺灰色"></button>
+          <button class="palette-swatch" type="button" data-color="#ffffff" style="--swatch-color: #ffffff" title="白色" aria-label="白色"></button>
+          <button class="palette-swatch" type="button" data-color="#7f1d1d" style="--swatch-color: #7f1d1d" title="深紅色" aria-label="深紅色"></button>
+          <button class="palette-swatch" type="button" data-color="#dc2626" style="--swatch-color: #dc2626" title="紅色" aria-label="紅色"></button>
+          <button class="palette-swatch" type="button" data-color="#f97316" style="--swatch-color: #f97316" title="橘色" aria-label="橘色"></button>
+          <button class="palette-swatch" type="button" data-color="#facc15" style="--swatch-color: #facc15" title="黃色" aria-label="黃色"></button>
+          <button class="palette-swatch" type="button" data-color="#16a34a" style="--swatch-color: #16a34a" title="綠色" aria-label="綠色"></button>
+          <button class="palette-swatch" type="button" data-color="#06b6d4" style="--swatch-color: #06b6d4" title="青色" aria-label="青色"></button>
+          <button class="palette-swatch" type="button" data-color="#2563eb" style="--swatch-color: #2563eb" title="藍色" aria-label="藍色"></button>
+          <button class="palette-swatch" type="button" data-color="#4f46e5" style="--swatch-color: #4f46e5" title="靛青色" aria-label="靛青色"></button>
+          <button class="palette-swatch" type="button" data-color="#7e22ce" style="--swatch-color: #7e22ce" title="紫色" aria-label="紫色"></button>
+          <button class="palette-swatch" type="button" data-color="#be185d" style="--swatch-color: #be185d" title="洋紅色" aria-label="洋紅色"></button>
+          <button class="palette-swatch" type="button" data-color="#92400e" style="--swatch-color: #92400e" title="棕色" aria-label="棕色"></button>
+          <button class="palette-swatch" type="button" data-color="#fca5a5" style="--swatch-color: #fca5a5" title="粉紅色" aria-label="粉紅色"></button>
+          <button class="palette-swatch" type="button" data-color="#fdba74" style="--swatch-color: #fdba74" title="淺橘色" aria-label="淺橘色"></button>
+          <button class="palette-swatch" type="button" data-color="#fef08a" style="--swatch-color: #fef08a" title="淡黃色" aria-label="淡黃色"></button>
+          <button class="palette-swatch" type="button" data-color="#86efac" style="--swatch-color: #86efac" title="淺綠色" aria-label="淺綠色"></button>
+          <button class="palette-swatch" type="button" data-color="#93c5fd" style="--swatch-color: #93c5fd" title="淺藍色" aria-label="淺藍色"></button>
+          <button class="palette-swatch" type="button" data-color="#c4b5fd" style="--swatch-color: #c4b5fd" title="淺紫色" aria-label="淺紫色"></button>
+          <button class="palette-swatch" type="button" data-color="#e5e7eb" style="--swatch-color: #e5e7eb" title="銀灰色" aria-label="銀灰色"></button>
+          <button class="palette-swatch" type="button" data-color="#f3f4f6" style="--swatch-color: #f3f4f6" title="很淺灰色" aria-label="很淺灰色"></button>
+          <button class="palette-swatch" type="button" data-color="#111827" style="--swatch-color: #111827" title="深黑色" aria-label="深黑色"></button>
         </div>
         <label class="width-control" title="粗細">
           粗細
@@ -394,7 +462,10 @@
     const AUTOSAVE_KEY = "infinite-whiteboard.autosave.v1";
     const AUTOSAVE_DELAY = 250;
     const PINCH_ZOOM_DEADZONE = 0.015;
-    const SHAPE_TOOLS = new Set(["line", "rect", "circle", "ellipse"]);
+    const SHAPE_TOOLS = new Set(["line", "arrow", "rect", "circle", "ellipse", "triangle", "diamond", "hexagon"]);
+    const POLYGON_SHAPES = new Set(["triangle", "diamond", "hexagon"]);
+    const FILLABLE_SHAPES = new Set(["rect", "circle", "ellipse", "triangle", "diamond", "hexagon"]);
+    const FREEHAND_TYPES = new Set(["freehand", "pencil", "marker", "brush", "eraser", "highlighter"]);
 
     const viewport = {
       x: 0,
@@ -593,7 +664,7 @@
     function drawStroke(targetCtx, stroke) {
       if (!stroke || !stroke.type) return;
 
-      if (stroke.type === "freehand" || stroke.type === "eraser") {
+      if (FREEHAND_TYPES.has(stroke.type)) {
         drawFreehand(targetCtx, stroke);
         return;
       }
@@ -611,10 +682,31 @@
     function drawFreehand(targetCtx, stroke) {
       if (!stroke.points || stroke.points.length === 0) return;
 
+      const baseWidth = Math.max(1, (stroke.width || 1) * viewport.zoom);
+      const style = {
+        width: baseWidth,
+        alpha: 1
+      };
+
+      if (stroke.type === "pencil") {
+        style.width = Math.max(1, baseWidth * 0.65);
+        style.alpha = 0.68;
+      } else if (stroke.type === "marker") {
+        style.width = Math.max(5, baseWidth * 1.7);
+        style.alpha = 0.82;
+      } else if (stroke.type === "brush") {
+        style.width = Math.max(10, baseWidth * 2.4);
+        style.alpha = 0.48;
+      } else if (stroke.type === "highlighter") {
+        style.width = Math.max(12, baseWidth);
+        style.alpha = 0.3;
+      }
+
       targetCtx.save();
       targetCtx.globalCompositeOperation = stroke.type === "eraser" ? "destination-out" : "source-over";
+      targetCtx.globalAlpha = style.alpha;
       targetCtx.strokeStyle = stroke.color || "#000000";
-      targetCtx.lineWidth = Math.max(1, (stroke.width || 1) * viewport.zoom);
+      targetCtx.lineWidth = style.width;
       targetCtx.lineCap = "round";
       targetCtx.lineJoin = "round";
       targetCtx.beginPath();
@@ -642,8 +734,71 @@
         }
       }
 
+      if (stroke.fillColor && FREEHAND_TYPES.has(stroke.type)
+        && stroke.type !== "eraser" && stroke.type !== "highlighter") {
+        targetCtx.fillStyle = stroke.fillColor;
+        targetCtx.fill();
+      }
       targetCtx.stroke();
       targetCtx.restore();
+    }
+
+    function getPolygonVertices(start, end, type) {
+      if (!POLYGON_SHAPES.has(type)) return null;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      const centerX = (left + right) / 2;
+      const centerY = (top + bottom) / 2;
+
+      if (type === "triangle") {
+        return [
+          { x: centerX, y: top },
+          { x: right, y: bottom },
+          { x: left, y: bottom }
+        ];
+      }
+
+      if (type === "diamond") {
+        return [
+          { x: centerX, y: top },
+          { x: right, y: centerY },
+          { x: centerX, y: bottom },
+          { x: left, y: centerY }
+        ];
+      }
+
+      return [
+        { x: left + (right - left) * 0.25, y: top },
+        { x: left + (right - left) * 0.75, y: top },
+        { x: right, y: centerY },
+        { x: left + (right - left) * 0.75, y: bottom },
+        { x: left + (right - left) * 0.25, y: bottom },
+        { x: left, y: centerY }
+      ];
+    }
+
+    function drawArrowPath(targetCtx, start, end) {
+      const angle = Math.atan2(end.y - start.y, end.x - start.x);
+      const headLength = Math.max(12, Math.min(32, distance(start, end) * 0.25));
+      const headAngle = Math.PI / 6;
+      const leftHead = {
+        x: end.x - headLength * Math.cos(angle - headAngle),
+        y: end.y - headLength * Math.sin(angle - headAngle)
+      };
+      const rightHead = {
+        x: end.x - headLength * Math.cos(angle + headAngle),
+        y: end.y - headLength * Math.sin(angle + headAngle)
+      };
+
+      targetCtx.moveTo(start.x, start.y);
+      targetCtx.lineTo(end.x, end.y);
+      targetCtx.moveTo(end.x, end.y);
+      targetCtx.lineTo(leftHead.x, leftHead.y);
+      targetCtx.moveTo(end.x, end.y);
+      targetCtx.lineTo(rightHead.x, rightHead.y);
     }
 
     function drawShape(targetCtx, stroke) {
@@ -662,7 +817,16 @@
       targetCtx.lineJoin = "round";
       targetCtx.beginPath();
 
-      if (stroke.type === "line") {
+      const polygon = getPolygonVertices(start, end, stroke.type);
+      if (polygon) {
+        targetCtx.moveTo(polygon[0].x, polygon[0].y);
+        for (let i = 1; i < polygon.length; i += 1) {
+          targetCtx.lineTo(polygon[i].x, polygon[i].y);
+        }
+        targetCtx.closePath();
+      } else if (stroke.type === "arrow") {
+        drawArrowPath(targetCtx, start, end);
+      } else if (stroke.type === "line") {
         targetCtx.moveTo(start.x, start.y);
         targetCtx.lineTo(end.x, end.y);
       } else if (stroke.type === "rect") {
@@ -676,6 +840,10 @@
         targetCtx.ellipse(left + width / 2, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
       }
 
+      if (stroke.fillColor && stroke.type !== "line" && stroke.type !== "arrow") {
+        targetCtx.fillStyle = stroke.fillColor;
+        targetCtx.fill();
+      }
       targetCtx.stroke();
       targetCtx.restore();
     }
@@ -1432,7 +1600,7 @@
     function commitStroke(stroke) {
       if (!stroke) return;
 
-      if ((stroke.type === "freehand" || stroke.type === "eraser") && (!stroke.points || stroke.points.length < 1)) {
+      if (FREEHAND_TYPES.has(stroke.type) && (!stroke.points || stroke.points.length < 1)) {
         return;
       }
 
@@ -1591,12 +1759,36 @@
     function isStrokeHit(stroke, world) {
       const tolerance = Math.max(STROKE_ERASER_TOLERANCE / viewport.zoom, (stroke.width || 1) / 2 + 3 / viewport.zoom);
 
-      if (stroke.type === "freehand") {
+      if (stroke.type === "freehand" || stroke.type === "highlighter") {
         return isPointNearPolyline(world, stroke.points || [], tolerance);
       }
 
       if (stroke.type === "line") {
         return distanceToSegment(world, stroke.start, stroke.end) <= tolerance;
+      }
+
+      if (POLYGON_SHAPES.has(stroke.type)) {
+        const vertices = getPolygonVertices(stroke.start, stroke.end, stroke.type);
+        return isPointNearPolyline(world, [...vertices, vertices[0]], tolerance);
+      }
+
+      if (stroke.type === "arrow") {
+        const angle = Math.atan2(stroke.end.y - stroke.start.y, stroke.end.x - stroke.start.x);
+        const headLength = Math.max(12, Math.min(32, distance(stroke.start, stroke.end) * 0.25));
+        const headAngle = Math.PI / 6;
+        const leftHead = {
+          x: stroke.end.x - headLength * Math.cos(angle - headAngle),
+          y: stroke.end.y - headLength * Math.sin(angle - headAngle)
+        };
+        const rightHead = {
+          x: stroke.end.x - headLength * Math.cos(angle + headAngle),
+          y: stroke.end.y - headLength * Math.sin(angle + headAngle)
+        };
+        return [
+          [stroke.start, stroke.end],
+          [stroke.end, leftHead],
+          [stroke.end, rightHead]
+        ].some(([start, end]) => distanceToSegment(world, start, end) <= tolerance);
       }
 
       if (stroke.type === "rect") {
@@ -1616,6 +1808,124 @@
       }
 
       return false;
+    }
+
+    function findFillTargetAt(world) {
+      for (let i = strokes.length - 1; i >= 0; i -= 1) {
+        const stroke = strokes[i];
+        if (FREEHAND_TYPES.has(stroke.type) && isPointInsideFreehand(stroke, world)) {
+          return { stroke, index: i };
+        }
+        if (FILLABLE_SHAPES.has(stroke.type)
+          && isPointInsideShape(stroke, world)) {
+          return { stroke, index: i };
+        }
+      }
+      return null;
+    }
+
+    function isClosedFreehand(stroke) {
+      if (!stroke || !FREEHAND_TYPES.has(stroke.type)
+        || stroke.type === "eraser" || stroke.type === "highlighter"
+        || !Array.isArray(stroke.points) || stroke.points.length < 3) {
+        return false;
+      }
+
+      const first = stroke.points[0];
+      const last = stroke.points[stroke.points.length - 1];
+      const tolerance = Math.max(12 / viewport.zoom, (stroke.width || 1) * 2);
+      return distance(first, last) <= tolerance;
+    }
+
+    function isPointInsideFreehand(stroke, point) {
+      if (!isClosedFreehand(stroke)) return false;
+
+      return isPointInsidePolygon(stroke.points, point);
+    }
+
+    function isPointInsidePolygon(points, point) {
+      let inside = false;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const current = points[i];
+        const previous = points[j];
+        const intersects = ((current.y > point.y) !== (previous.y > point.y))
+          && point.x < (previous.x - current.x) * (point.y - current.y)
+            / (previous.y - current.y) + current.x;
+
+        if (intersects) inside = !inside;
+      }
+
+      return inside;
+    }
+
+    function isPointInsideShape(stroke, point) {
+      if (!stroke || !isValidPoint(stroke.start) || !isValidPoint(stroke.end)) return false;
+
+      const left = Math.min(stroke.start.x, stroke.end.x);
+      const right = Math.max(stroke.start.x, stroke.end.x);
+      const top = Math.min(stroke.start.y, stroke.end.y);
+      const bottom = Math.max(stroke.start.y, stroke.end.y);
+
+      if (POLYGON_SHAPES.has(stroke.type)) {
+        return isPointInsidePolygon(getPolygonVertices(stroke.start, stroke.end, stroke.type), point);
+      }
+
+      if (stroke.type === "rect") {
+        return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
+      }
+
+      if (stroke.type === "circle") {
+        const side = Math.min(right - left, bottom - top);
+        if (side <= 0) return false;
+        const center = {
+          x: stroke.start.x + Math.sign(stroke.end.x - stroke.start.x || 1) * side / 2,
+          y: stroke.start.y + Math.sign(stroke.end.y - stroke.start.y || 1) * side / 2
+        };
+        return distance(point, center) <= side / 2;
+      }
+
+      if (stroke.type === "ellipse") {
+        const rx = (right - left) / 2;
+        const ry = (bottom - top) / 2;
+        if (rx <= 0 || ry <= 0) return false;
+        const centerX = left + rx;
+        const centerY = top + ry;
+        return ((point.x - centerX) ** 2) / (rx ** 2)
+          + ((point.y - centerY) ** 2) / (ry ** 2) <= 1;
+      }
+
+      return false;
+    }
+
+    function fillStrokeAt(world) {
+      const hit = findFillTargetAt(world);
+      if (!hit) {
+        showStatus("請點擊圖形或封閉筆畫的內部填色。");
+        return;
+      }
+
+      const before = cloneStroke(hit.stroke);
+      const after = cloneStroke(hit.stroke);
+      after.fillColor = colorPicker.value;
+
+      if (before.fillColor === after.fillColor) {
+        showStatus("這個圖形已經使用目前的填色。");
+        return;
+      }
+
+      replaceStrokeById(after.id, after);
+      selectedStrokeId = after.id;
+      pushUndoAction({
+        type: "update",
+        strokeId: after.id,
+        before,
+        after
+      });
+      markLayerDirty();
+      requestRedraw();
+      scheduleAutosave();
+      updateUndoButton();
+      showStatus("已填入顏色。");
     }
 
     function isPointInStickyNote(point, note) {
@@ -1727,12 +2037,21 @@
         return;
       }
 
-      if (activeTool === "pen" || activeTool === "eraser") {
+      if (activeTool === "fill") {
+        fillStrokeAt(world);
+        drawingPointerId = null;
+        return;
+      }
+
+      if (activeTool === "pen" || activeTool === "pencil" || activeTool === "marker"
+        || activeTool === "brush" || activeTool === "eraser" || activeTool === "highlighter") {
         currentStroke = {
           id: newId("stroke"),
-          type: activeTool === "pen" ? "freehand" : "eraser",
+          type: activeTool === "pen" ? "freehand" : activeTool,
           color: colorPicker.value,
-          width: Number(widthSlider.value),
+          width: activeTool === "highlighter"
+            ? Math.max(12, Number(widthSlider.value))
+            : Number(widthSlider.value),
           points: [world]
         };
         requestRedraw();
@@ -2218,7 +2537,7 @@
     function isValidStroke(stroke) {
       if (!stroke || typeof stroke.type !== "string") return false;
 
-      if (stroke.type === "freehand" || stroke.type === "eraser") {
+      if (FREEHAND_TYPES.has(stroke.type)) {
         return Array.isArray(stroke.points) && stroke.points.every(isValidPoint);
       }
 
